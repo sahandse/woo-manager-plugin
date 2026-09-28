@@ -26,7 +26,7 @@ final class WM_REST {
         $orders = wc_get_orders(['limit'=>min(50,max(1,(int)$request->get_param('limit'))),'orderby'=>'date','order'=>'DESC']);
         return rest_ensure_response(array_map(static function($order){
             $created = $order->get_date_created();
-            return ['id'=>$order->get_id(),'status'=>$order->get_status(),'total'=>$order->get_total(),'currency'=>$order->get_currency(),'customer'=>$order->get_formatted_billing_full_name(),'date'=>$created ? $created->date(DATE_ATOM) : null];
+            return ['id'=>$order->get_id(),'status'=>$order->get_status(),'total'=>$order->get_total(),'currency'=>$order->get_currency(),'customer'=>$order->get_formatted_billing_full_name(),'date'=>$created ? $created->date(DATE_ATOM) : null,'tapin_order_id'=>$order->get_meta('_tapin_order_id')?:null,'tapin_uuid'=>$order->get_meta('_tapin_uuid')?:null,'tracking_number'=>$order->get_meta('_tracking_number')?:null];
         }, $orders));
     }
     public static function tapin_register(WP_REST_Request $request) {
