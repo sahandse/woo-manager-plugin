@@ -49,4 +49,6 @@ final class WM_Devices {
         $wpdb->update(self::table(), ['last_seen_at'=>current_time('mysql', true)], ['id'=>(int)$id], ['%s'], ['%d']);
         return true;
     }
+    public static function all(): array { global $wpdb; return $wpdb->get_results('SELECT id,device_id,device_name,role,created_at,last_seen_at,revoked_at FROM '.self::table().' ORDER BY id DESC',ARRAY_A); }
+    public static function revoke(int $id): bool { global $wpdb; return false!==$wpdb->update(self::table(),['revoked_at'=>current_time('mysql',true)],['id'=>$id],['%s'],['%d']); }
 }
