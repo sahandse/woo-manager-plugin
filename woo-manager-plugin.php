@@ -15,9 +15,14 @@ defined('ABSPATH') || exit;
 define('WOO_MANAGER_VERSION', '0.1.0');
 define('WOO_MANAGER_FILE', __FILE__);
 define('WOO_MANAGER_PATH', plugin_dir_path(__FILE__));
+$woo_manager_autoload = WOO_MANAGER_PATH . 'vendor/autoload.php';
+if (file_exists($woo_manager_autoload)) require_once $woo_manager_autoload;
 
 require_once WOO_MANAGER_PATH . 'includes/class-wm-crypto.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-settings.php';
+require_once WOO_MANAGER_PATH . 'includes/class-wm-devices.php';
+require_once WOO_MANAGER_PATH . 'includes/class-wm-order-mapper.php';
+require_once WOO_MANAGER_PATH . 'includes/class-wm-pdf.php';
 require_once WOO_MANAGER_PATH . 'includes/integrations/class-wm-tapin.php';
 require_once WOO_MANAGER_PATH . 'includes/integrations/sms/interface-wm-sms-provider.php';
 require_once WOO_MANAGER_PATH . 'includes/integrations/sms/class-wm-melipayamak.php';
@@ -29,10 +34,12 @@ register_activation_hook(__FILE__, static function (): void {
         add_option('woo_manager_install_id', wp_generate_uuid4(), '', false);
     }
     update_option('woo_manager_version', WOO_MANAGER_VERSION, false);
+    WM_Devices::install();
 });
 
 add_action('plugins_loaded', static function (): void {
     WM_Settings::boot();
+    WM_Devices::boot();
     WM_REST::boot();
 });
 
