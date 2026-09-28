@@ -13,6 +13,11 @@ final class WM_REST {
         ]);
         register_rest_route('woo-manager/v1', '/orders/(?P<order_id>\d+)/notes', ['methods'=>'POST','callback'=>[self::class,'add_note'],'permission_callback'=>[self::class,'can_manage']]);
         register_rest_route('woo-manager/v1', '/orders/(?P<order_id>\d+)/refunds', ['methods'=>'POST','callback'=>[self::class,'create_refund'],'permission_callback'=>[self::class,'can_manage']]);
+        register_rest_route('woo-manager/v1', '/products', ['methods'=>'GET','callback'=>[self::class,'products'],'permission_callback'=>[self::class,'can_manage']]);
+        register_rest_route('woo-manager/v1', '/products/(?P<product_id>\d+)', [
+            ['methods'=>'GET','callback'=>[self::class,'product_detail'],'permission_callback'=>[self::class,'can_manage']],
+            ['methods'=>'PATCH','callback'=>[self::class,'update_product'],'permission_callback'=>[self::class,'can_manage']],
+        ]);
         register_rest_route('woo-manager/v1', '/tapin/register/(?P<order_id>\d+)', ['methods'=>'POST','callback'=>[self::class,'tapin_register'],'permission_callback'=>[self::class,'can_manage']]);
         register_rest_route('woo-manager/v1', '/tapin/label', ['methods'=>'POST','callback'=>[self::class,'tapin_label'],'permission_callback'=>[self::class,'can_manage']]);
         register_rest_route('woo-manager/v1', '/tapin/invoice', ['methods'=>'POST','callback'=>[self::class,'tapin_invoice'],'permission_callback'=>[self::class,'can_manage']]);
@@ -65,6 +70,33 @@ final class WM_REST {
     public static function create_refund(WP_REST_Request $request){
         $order=self::get_order($request);if(is_wp_error($order))return $order;$p=(array)$request->get_json_params();if(($p['confirm']??false)!==true)return new WP_Error('refund_confirmation_required','برای بازپرداخت، تأیید صریح الزامی است.',['status'=>409]);$amount=(float)wc_format_decimal($p['amount']??0);$remaining=(float)$order->get_remaining_refund_amount();if($amount<=0||$amount>$remaining)return new WP_Error('invalid_refund_amount','مبلغ بازپرداخت باید بیشتر از صفر و حداکثر مبلغ قابل بازپرداخت باشد.',['status'=>422]);
         $refund=wc_create_refund(['order_id'=>$order->get_id(),'amount'=>$amount,'reason'=>sanitize_text_field((string)($p['reason']??'')),'refund_payment'=>rest_sanitize_boolean($p['refund_payment']??false),'restock_items'=>rest_sanitize_boolean($p['restock_items']??false)]);if(is_wp_error($refund))return $refund;$order->add_order_note(sprintf('بازپرداخت مبلغ %s از اپ Woo Manager ثبت شد.',wc_price($amount,['currency'=>$order->get_currency()])));return new WP_REST_Response(['refund_id'=>$refund->get_id(),'order'=>self::serialize_order($order)],201);
+    }
+    private static function product_summary(WC_Product $product): array {
+        $image_id=$product->get_image_id();
+        return ['id'=>$product->get_id(),'name'=>$product->get_name(),'type'=>$product->get_type(),'status'=>$product->get_status(),'sku'=>$product->get_sku(),'price'=>$product->get_price(),'regular_price'=>$product->get_regular_price(),'sale_price'=>$product->get_sale_price(),'stock_status'=>$product->get_stock_status(),'stock_quantity'=>$product->get_stock_quantity(),'manage_stock'=>$product->get_manage_stock(),'featured'=>$product->get_featured(),'image'=>$image_id?wp_get_attachment_image_url($image_id,'woocommerce_thumbnail'):null];
+    }
+    private static function serialize_product(WC_Product $product): array {
+        $data=self::product_summary($product);$images=[];
+        foreach(array_filter(array_merge([$product->get_image_id()],$product->get_gallery_image_ids())) as $image_id){$images[]=['id'=>(int)$image_id,'src'=>wp_get_attachment_image_url($image_id,'large'),'thumbnail'=>wp_get_attachment_image_url($image_id,'woocommerce_thumbnail')];}
+        $categories=array_map(static fn($term)=>['id'=>$term->term_id,'name'=>$term->name],wp_get_post_terms($product->get_id(),'product_cat'));
+        $attributes=[];foreach($product->get_attributes() as $attribute){$attributes[]=['name'=>wc_attribute_label($attribute->get_name()),'options'=>$attribute->is_taxonomy()?wc_get_product_terms($product->get_id(),$attribute->get_name(),['fields'=>'names']):$attribute->get_options(),'variation'=>$attribute->get_variation(),'visible'=>$attribute->get_visible()];}
+        $variations=[];if($product->is_type('variable')){foreach($product->get_children() as $variation_id){$variation=wc_get_product($variation_id);if($variation)$variations[]=array_merge(self::product_summary($variation),['attributes'=>$variation->get_attributes()]);}}
+        return array_merge($data,['description'=>$product->get_description(),'short_description'=>$product->get_short_description(),'weight'=>$product->get_weight(),'dimensions'=>['length'=>$product->get_length(),'width'=>$product->get_width(),'height'=>$product->get_height()],'categories'=>$categories,'attributes'=>$attributes,'images'=>$images,'variations'=>$variations,'permalink'=>$product->get_permalink(),'date_modified'=>$product->get_date_modified()?$product->get_date_modified()->date(DATE_ATOM):null]);
+    }
+    public static function products(WP_REST_Request $request){
+        if(!function_exists('wc_get_products'))return new WP_Error('woocommerce_missing','ووکامرس فعال نیست.',['status'=>503]);$limit=min(50,max(1,(int)($request->get_param('limit')?:30)));$page=max(1,(int)($request->get_param('page')?:1));$args=['limit'=>$limit,'page'=>$page,'paginate'=>true,'orderby'=>'date','order'=>'DESC'];$search=trim(sanitize_text_field((string)$request->get_param('search')));if($search!=='')$args['s']=$search;$status=sanitize_key((string)$request->get_param('status'));if($status!=='')$args['status']=$status;$result=wc_get_products($args);return rest_ensure_response(['items'=>array_map([self::class,'product_summary'],$result->products),'total'=>(int)$result->total,'pages'=>(int)$result->max_num_pages,'page'=>$page]);
+    }
+    private static function get_product(WP_REST_Request $request){$product=wc_get_product(absint($request['product_id']));return $product?:new WP_Error('product_not_found','محصول پیدا نشد.',['status'=>404]);}
+    public static function product_detail(WP_REST_Request $request){$product=self::get_product($request);return is_wp_error($product)?$product:rest_ensure_response(self::serialize_product($product));}
+    public static function update_product(WP_REST_Request $request){
+        $product=self::get_product($request);if(is_wp_error($product))return $product;$p=(array)$request->get_json_params();
+        if(array_key_exists('name',$p))$product->set_name(sanitize_text_field((string)$p['name']));if(array_key_exists('sku',$p)){$sku=wc_clean((string)$p['sku']);try{$product->set_sku($sku);}catch(Exception $e){return new WP_Error('invalid_sku',$e->getMessage(),['status'=>422]);}}
+        foreach(['regular_price','sale_price'] as $field){if(array_key_exists($field,$p)){$value=$p[$field]===''?'':wc_format_decimal($p[$field]);$method='set_'.$field;$product->{$method}($value);}}
+        if(array_key_exists('manage_stock',$p))$product->set_manage_stock(rest_sanitize_boolean($p['manage_stock']));if(array_key_exists('stock_quantity',$p)&&$product->get_manage_stock())$product->set_stock_quantity(max(0,(int)$p['stock_quantity']));
+        if(array_key_exists('stock_status',$p)){if(!in_array($p['stock_status'],['instock','outofstock','onbackorder'],true))return new WP_Error('invalid_stock_status','وضعیت موجودی معتبر نیست.',['status'=>422]);$product->set_stock_status($p['stock_status']);}
+        if(array_key_exists('status',$p)){if(!in_array($p['status'],['publish','draft','pending','private'],true))return new WP_Error('invalid_product_status','وضعیت انتشار معتبر نیست.',['status'=>422]);$product->set_status($p['status']);}
+        if(array_key_exists('featured',$p))$product->set_featured(rest_sanitize_boolean($p['featured']));if(array_key_exists('description',$p))$product->set_description(wp_kses_post((string)$p['description']));if(array_key_exists('short_description',$p))$product->set_short_description(wp_kses_post((string)$p['short_description']));
+        try{$product->save();return rest_ensure_response(self::serialize_product($product));}catch(Throwable $e){return new WP_Error('product_update_failed',$e->getMessage(),['status'=>500]);}
     }
     public static function tapin_register(WP_REST_Request $request) {
         $wc_id=absint($request['order_id']); $order=wc_get_order($wc_id);
