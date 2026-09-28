@@ -18,6 +18,7 @@ final class WM_REST {
             ['methods'=>'GET','callback'=>[self::class,'product_detail'],'permission_callback'=>[self::class,'can_manage']],
             ['methods'=>'PATCH','callback'=>[self::class,'update_product'],'permission_callback'=>[self::class,'can_manage']],
         ]);
+        register_rest_route('woo-manager/v1', '/products/(?P<product_id>\d+)/variations/(?P<variation_id>\d+)', ['methods'=>'PATCH','callback'=>[self::class,'update_variation'],'permission_callback'=>[self::class,'can_manage']]);
         register_rest_route('woo-manager/v1', '/tapin/register/(?P<order_id>\d+)', ['methods'=>'POST','callback'=>[self::class,'tapin_register'],'permission_callback'=>[self::class,'can_manage']]);
         register_rest_route('woo-manager/v1', '/tapin/label', ['methods'=>'POST','callback'=>[self::class,'tapin_label'],'permission_callback'=>[self::class,'can_manage']]);
         register_rest_route('woo-manager/v1', '/tapin/invoice', ['methods'=>'POST','callback'=>[self::class,'tapin_invoice'],'permission_callback'=>[self::class,'can_manage']]);
@@ -97,6 +98,9 @@ final class WM_REST {
         if(array_key_exists('status',$p)){if(!in_array($p['status'],['publish','draft','pending','private'],true))return new WP_Error('invalid_product_status','وضعیت انتشار معتبر نیست.',['status'=>422]);$product->set_status($p['status']);}
         if(array_key_exists('featured',$p))$product->set_featured(rest_sanitize_boolean($p['featured']));if(array_key_exists('description',$p))$product->set_description(wp_kses_post((string)$p['description']));if(array_key_exists('short_description',$p))$product->set_short_description(wp_kses_post((string)$p['short_description']));
         try{$product->save();return rest_ensure_response(self::serialize_product($product));}catch(Throwable $e){return new WP_Error('product_update_failed',$e->getMessage(),['status'=>500]);}
+    }
+    public static function update_variation(WP_REST_Request $request){
+        $parent=self::get_product($request);if(is_wp_error($parent))return $parent;$variation=wc_get_product(absint($request['variation_id']));if(!$variation||!$variation->is_type('variation')||(int)$variation->get_parent_id()!==$parent->get_id())return new WP_Error('variation_not_found','متغیر محصول پیدا نشد.',['status'=>404]);$p=(array)$request->get_json_params();foreach(['regular_price','sale_price'] as $field){if(array_key_exists($field,$p)){$method='set_'.$field;$variation->{$method}($p[$field]===''?'':wc_format_decimal($p[$field]));}}if(array_key_exists('manage_stock',$p))$variation->set_manage_stock(rest_sanitize_boolean($p['manage_stock']));if(array_key_exists('stock_quantity',$p)&&$variation->get_manage_stock())$variation->set_stock_quantity(max(0,(int)$p['stock_quantity']));if(array_key_exists('stock_status',$p)){if(!in_array($p['stock_status'],['instock','outofstock','onbackorder'],true))return new WP_Error('invalid_stock_status','وضعیت موجودی معتبر نیست.',['status'=>422]);$variation->set_stock_status($p['stock_status']);}try{$variation->save();return rest_ensure_response(self::serialize_product($parent));}catch(Throwable $e){return new WP_Error('variation_update_failed',$e->getMessage(),['status'=>500]);}
     }
     public static function tapin_register(WP_REST_Request $request) {
         $wc_id=absint($request['order_id']); $order=wc_get_order($wc_id);
