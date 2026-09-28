@@ -2,17 +2,18 @@
 /**
  * Plugin Name: Woo Manager
  * Description: API امن مدیریت ووکامرس، ارسال تاپین و پیامک فارسی.
- * Version: 0.2.0
+ * Version: 1.0.0
  * Author: Sahand Rezvan
  * Requires PHP: 7.4
  * Requires at least: 6.4
  * WC requires at least: 8.0
+ * Requires Plugins: woocommerce
  * Text Domain: woo-manager
  */
 
 defined('ABSPATH') || exit;
 
-define('WOO_MANAGER_VERSION', '0.2.0');
+define('WOO_MANAGER_VERSION', '1.0.0');
 define('WOO_MANAGER_FILE', __FILE__);
 define('WOO_MANAGER_PATH', plugin_dir_path(__FILE__));
 $woo_manager_autoload = WOO_MANAGER_PATH . 'vendor/autoload.php';
@@ -29,6 +30,12 @@ require_once WOO_MANAGER_PATH . 'includes/integrations/sms/interface-wm-sms-prov
 require_once WOO_MANAGER_PATH . 'includes/integrations/sms/class-wm-melipayamak.php';
 require_once WOO_MANAGER_PATH . 'includes/integrations/sms/class-wm-farazsms.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-rest.php';
+
+add_action('before_woocommerce_init', static function (): void {
+    if (class_exists(Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+        Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', WOO_MANAGER_FILE, true);
+    }
+});
 
 register_activation_hook(__FILE__, static function (): void {
     if (!get_option('woo_manager_install_id')) {
