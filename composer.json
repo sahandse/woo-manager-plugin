@@ -2,6 +2,7 @@
   "name": "sahandse/woo-manager-plugin",
   "description": "WooCommerce mobile management bridge",
   "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
   "require": { "php": ">=7.4", "dompdf/dompdf": "^2.0" },
   "config": { "optimize-autoloader": true, "sort-packages": true }
 }
