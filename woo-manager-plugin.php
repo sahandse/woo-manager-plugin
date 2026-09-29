@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Woo Manager
  * Description: API امن مدیریت ووکامرس، ارسال تاپین و پیامک فارسی.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Sahand Rezvan
  * Requires PHP: 7.4
  * Requires at least: 6.4
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') || exit;
 
-define('WOO_MANAGER_VERSION', '1.1.0');
+define('WOO_MANAGER_VERSION', '1.1.1');
 define('WOO_MANAGER_FILE', __FILE__);
 define('WOO_MANAGER_PATH', plugin_dir_path(__FILE__));
 $woo_manager_autoload = WOO_MANAGER_PATH . 'vendor/autoload.php';
@@ -42,15 +42,21 @@ register_activation_hook(__FILE__, static function (): void {
     if (!get_option('woo_manager_install_id')) {
         add_option('woo_manager_install_id', wp_generate_uuid4(), '', false);
     }
-    update_option('woo_manager_version', WOO_MANAGER_VERSION, false);
     WM_Devices::install();
     WM_Logs::install();
+    WM_Workflows::install();
+    update_option('woo_manager_version', WOO_MANAGER_VERSION, false);
+});
+
+register_deactivation_hook(__FILE__, static function (): void {
+    wp_clear_scheduled_hook('woo_manager_retry_queue');
 });
 
 add_action('plugins_loaded', static function (): void {
     if (get_option('woo_manager_version') !== WOO_MANAGER_VERSION) {
         WM_Devices::install();
         WM_Logs::install();
+        WM_Workflows::install();
         update_option('woo_manager_version', WOO_MANAGER_VERSION, false);
     }
     WM_Settings::boot();
