@@ -5,16 +5,23 @@ final class WM_Workflows {
     private const PREFS = 'woo_manager_app_preferences';
     private const QUEUE = 'woo_manager_retry_queue';
 
-    public static function boot(): void {
-        register_post_type('woo_manager_return',['public'=>false,'show_ui'=>false,'supports'=>['title','editor'],'capability_type'=>'post']);
+    public static function install(): void {
         add_role('woo_manager_warehouse','انباردار فروشگاه',['read'=>true,'manage_woocommerce'=>true]);
         add_role('woo_manager_support','پشتیبانی فروشگاه',['read'=>true,'manage_woocommerce'=>true]);
+        if (!wp_next_scheduled('woo_manager_retry_queue')) wp_schedule_event(time() + 300, 'hourly', 'woo_manager_retry_queue');
+    }
+
+    public static function register_types(): void {
+        register_post_type('woo_manager_return',['public'=>false,'show_ui'=>false,'supports'=>['title','editor'],'capability_type'=>'post']);
+    }
+
+    public static function boot(): void {
+        add_action('init', [self::class, 'register_types']);
         add_action('rest_api_init', [self::class, 'routes']);
         add_action('woocommerce_new_order', [self::class, 'order_event'], 10, 1);
         add_action('woocommerce_order_status_changed', [self::class, 'status_event'], 10, 4);
         add_action('woocommerce_product_set_stock_status', [self::class, 'stock_event'], 10, 3);
         add_action('woo_manager_retry_queue', [self::class, 'process_queue']);
-        if (!wp_next_scheduled('woo_manager_retry_queue')) wp_schedule_event(time() + 300, 'hourly', 'woo_manager_retry_queue');
     }
 
     public static function routes(): void {
