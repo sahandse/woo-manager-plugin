@@ -90,17 +90,25 @@ final class WM_REST {
         $limit=min(100,max(1,(int)($request->get_param('limit')?:50)));
         $page=max(1,(int)($request->get_param('page')?:1));
         $status=sanitize_key((string)$request->get_param('status'));
-        $args=['limit'=>$limit,'page'=>$page,'orderby'=>'date','order'=>'DESC'];
+        $all_statuses=array_map(static fn($key)=>str_replace('wc-','',$key),array_keys(wc_get_order_statuses()));
+        $args=['limit'=>$limit,'page'=>$page,'paginate'=>true,'return'=>'objects','orderby'=>'date','order'=>'DESC','status'=>$all_statuses];
         if($status!==''){
-            $allowed=array_map(static fn($key)=>str_replace('wc-','',$key),array_keys(wc_get_order_statuses()));
-            if(!in_array($status,$allowed,true))return new WP_Error('invalid_order_status','وضعیت سفارش معتبر نیست.',['status'=>422]);
+            if(!in_array($status,$all_statuses,true))return new WP_Error('invalid_order_status','وضعیت سفارش معتبر نیست.',['status'=>422]);
             $args['status']=$status;
         }
-        $orders = wc_get_orders($args);
-        return rest_ensure_response(array_map(static function($order){
+        try{$query=wc_get_orders($args);}catch(Throwable $e){return new WP_Error('orders_query_failed','خواندن سفارش‌های ووکامرس انجام نشد: '.$e->getMessage(),['status'=>500]);}
+        $orders=is_object($query)&&isset($query->orders)?$query->orders:(array)$query;
+        $items=array_values(array_filter(array_map(static function($order){
+            if(!is_a($order,'WC_Order'))return null;
             $created = $order->get_date_created();
             return ['id'=>$order->get_id(),'status'=>$order->get_status(),'total'=>$order->get_total(),'currency'=>$order->get_currency(),'customer'=>$order->get_formatted_billing_full_name(),'date'=>$created ? $created->date(DATE_ATOM) : null,'tapin_order_id'=>$order->get_meta('_tapin_order_id')?:null,'tapin_uuid'=>$order->get_meta('_tapin_uuid')?:null,'tracking_number'=>$order->get_meta('_tracking_number')?:null];
-        }, $orders));
+        },$orders)));
+        if(!$request->get_param('envelope'))return rest_ensure_response($items);
+        $counts=[];$store_total=0;
+        foreach($all_statuses as $key){$count=(int)wc_orders_count($key);$counts[$key]=$count;$store_total+=$count;}
+        $total=is_object($query)&&isset($query->total)?(int)$query->total:count($items);
+        $pages=is_object($query)&&isset($query->max_num_pages)?(int)$query->max_num_pages:max(1,(int)ceil($total/$limit));
+        return rest_ensure_response(['items'=>$items,'total'=>$total,'store_total'=>$store_total,'page'=>$page,'pages'=>$pages,'limit'=>$limit,'status'=>$status,'counts'=>$counts,'storage'=>class_exists('Automattic\\WooCommerce\\Utilities\\OrderUtil')&&Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled()?'hpos':'posts','plugin_version'=>WOO_MANAGER_VERSION]);
     }
     private static function get_order(WP_REST_Request $request) {
         if (!function_exists('wc_get_order')) return new WP_Error('woocommerce_missing','ووکامرس فعال نیست.',['status'=>503]);
