@@ -87,7 +87,16 @@ final class WM_REST {
     }
     public static function orders(WP_REST_Request $request) {
         if (!function_exists('wc_get_orders')) return new WP_Error('woocommerce_missing','ووکامرس فعال نیست.',['status'=>503]);
-        $orders = wc_get_orders(['limit'=>min(50,max(1,(int)$request->get_param('limit'))),'orderby'=>'date','order'=>'DESC']);
+        $limit=min(100,max(1,(int)($request->get_param('limit')?:50)));
+        $page=max(1,(int)($request->get_param('page')?:1));
+        $status=sanitize_key((string)$request->get_param('status'));
+        $args=['limit'=>$limit,'page'=>$page,'orderby'=>'date','order'=>'DESC'];
+        if($status!==''){
+            $allowed=array_map(static fn($key)=>str_replace('wc-','',$key),array_keys(wc_get_order_statuses()));
+            if(!in_array($status,$allowed,true))return new WP_Error('invalid_order_status','وضعیت سفارش معتبر نیست.',['status'=>422]);
+            $args['status']=$status;
+        }
+        $orders = wc_get_orders($args);
         return rest_ensure_response(array_map(static function($order){
             $created = $order->get_date_created();
             return ['id'=>$order->get_id(),'status'=>$order->get_status(),'total'=>$order->get_total(),'currency'=>$order->get_currency(),'customer'=>$order->get_formatted_billing_full_name(),'date'=>$created ? $created->date(DATE_ATOM) : null,'tapin_order_id'=>$order->get_meta('_tapin_order_id')?:null,'tapin_uuid'=>$order->get_meta('_tapin_uuid')?:null,'tracking_number'=>$order->get_meta('_tracking_number')?:null];
