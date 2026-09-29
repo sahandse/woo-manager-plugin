@@ -6,6 +6,9 @@ final class WM_Workflows {
     private const QUEUE = 'woo_manager_retry_queue';
 
     public static function boot(): void {
+        register_post_type('woo_manager_return',['public'=>false,'show_ui'=>false,'supports'=>['title','editor'],'capability_type'=>'post']);
+        add_role('woo_manager_warehouse','انباردار فروشگاه',['read'=>true,'manage_woocommerce'=>true]);
+        add_role('woo_manager_support','پشتیبانی فروشگاه',['read'=>true,'manage_woocommerce'=>true]);
         add_action('rest_api_init', [self::class, 'routes']);
         add_action('woocommerce_new_order', [self::class, 'order_event'], 10, 1);
         add_action('woocommerce_order_status_changed', [self::class, 'status_event'], 10, 4);
