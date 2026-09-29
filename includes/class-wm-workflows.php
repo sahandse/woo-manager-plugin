@@ -149,7 +149,7 @@ final class WM_Workflows {
     }
     public static function team(){ $users=get_users(['role__in'=>['administrator','shop_manager','woo_manager_warehouse','woo_manager_support']]);return rest_ensure_response(array_map(static fn($u)=>['id'=>$u->ID,'name'=>$u->display_name,'roles'=>$u->roles],$users)); }
     public static function audit(WP_REST_Request $r){return rest_ensure_response(WM_Logs::recent(min(200,max(1,absint($r->get_param('limit')?:100)))));}
-    public static function preferences(){return rest_ensure_response(array_merge(['theme'=>'system','color'=>'emerald','thermal_size'=>'10x15','notifications'=>true],(array)get_option(self::PREFS,[])));}
+    public static function preferences(){return rest_ensure_response(array_merge(['theme'=>'light','color'=>'emerald','thermal_size'=>'10x15','notifications'=>true],(array)get_option(self::PREFS,[])));}
     public static function save_preferences(WP_REST_Request $r){$p=(array)$r->get_json_params();$clean=['theme'=>in_array($p['theme']??'system',['system','light','dark'],true)?$p['theme']:'system','color'=>sanitize_key((string)($p['color']??'emerald')),'thermal_size'=>in_array($p['thermal_size']??'10x15',['10x15','A6'],true)?$p['thermal_size']:'10x15','notifications'=>!empty($p['notifications'])];update_option(self::PREFS,$clean,false);self::log('preferences_updated','تنظیمات ظاهری اپ تغییر کرد.');return rest_ensure_response($clean);}
-    public static function release(){return rest_ensure_response(['plugin_version'=>WOO_MANAGER_VERSION,'api_version'=>2,'minimum_app_version'=>'1.1.0','download_url'=>apply_filters('woo_manager_app_download_url',''),'compatible'=>true]);}
+    public static function release(){return rest_ensure_response(['plugin_version'=>WOO_MANAGER_VERSION,'api_version'=>2,'minimum_app_version'=>'1.2.0','download_url'=>apply_filters('woo_manager_app_download_url',''),'compatible'=>true]);}
 }
