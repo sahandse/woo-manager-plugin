@@ -37,7 +37,7 @@ final class WM_Devices {
         global $wpdb;
         $wpdb->replace(self::table(), ['device_id'=>$device_id,'device_name'=>$device_name,'token_hash'=>hash('sha256',$token),'role'=>'manager','created_at'=>current_time('mysql', true),'last_seen_at'=>current_time('mysql', true),'revoked_at'=>null], ['%s','%s','%s','%s','%s','%s','%s']);
         if (!$wpdb->insert_id) return new WP_Error('device_store_failed', 'ذخیره دستگاه انجام نشد.', ['status'=>500]);
-        return ['token'=>$token,'device_id'=>$device_id,'site_name'=>get_bloginfo('name'),'api_url'=>rest_url('woo-manager/v1'),'plugin_version'=>WOO_MANAGER_VERSION,'api_version'=>1];
+        return ['token'=>$token,'device_id'=>$device_id,'site_name'=>get_bloginfo('name'),'api_url'=>rest_url('woo-manager/v1'),'plugin_version'=>WOO_MANAGER_VERSION,'api_version'=>2];
     }
     public static function authenticate(WP_REST_Request $request): bool {
         $header = trim((string)$request->get_header('authorization'));
