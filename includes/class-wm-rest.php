@@ -233,6 +233,7 @@ final class WM_REST {
         $mapped=WM_Order_Mapper::from_order($order,(array)$request->get_json_params());
         if (isset($mapped['error'])) return $mapped['error'];
         $result=WM_Tapin::register($mapped['payload']);
+        if (is_wp_error($result)) { WM_Workflows::enqueue('tapin',['order_id'=>$wc_id,'options'=>(array)$request->get_json_params()],$result->get_error_message()); }
         if (!is_wp_error($result)) {
             $entries=$result['entries']??[];
             if (!empty($entries['order_id'])) { $detail=WM_Tapin::detail((int)$entries['order_id']); if(!is_wp_error($detail) && !empty($detail['entries'])) $entries=array_merge($entries,$detail['entries']); }
@@ -249,8 +250,8 @@ final class WM_REST {
     }
     public static function auto_register(int $order_id): void {
         if(WM_Settings::get('tapin_auto_register','no')!=='yes')return; $order=wc_get_order($order_id); if(!$order||$order->get_meta('_tapin_order_id'))return;
-        $mapped=WM_Order_Mapper::from_order($order,[]); if(isset($mapped['error'])){$order->add_order_note('ثبت خودکار تاپین انجام نشد: '.$mapped['error']->get_error_message());return;}
-        $result=WM_Tapin::register($mapped['payload']); if(is_wp_error($result)){$order->add_order_note('خطای تاپین: '.$result->get_error_message());return;}
+        $mapped=WM_Order_Mapper::from_order($order,[]); if(isset($mapped['error'])){$order->add_order_note('ثبت خودکار تاپین انجام نشد: '.$mapped['error']->get_error_message());WM_Workflows::enqueue('tapin',['order_id'=>$order_id],$mapped['error']->get_error_message());return;}
+        $result=WM_Tapin::register($mapped['payload']); if(is_wp_error($result)){$order->add_order_note('خطای تاپین: '.$result->get_error_message());WM_Workflows::enqueue('tapin',['order_id'=>$order_id],$result->get_error_message());return;}
         $entries=$result['entries']??[]; if(!empty($entries['order_id'])){$detail=WM_Tapin::detail((int)$entries['order_id']);if(!is_wp_error($detail)&&!empty($detail['entries']))$entries=array_merge($entries,$detail['entries']);}
         $order->update_meta_data('_tapin_order_id',$entries['order_id']??'');$order->update_meta_data('_tapin_uuid',$entries['id']??'');$order->update_meta_data('_tracking_number',$entries['barcode']??'');$order->save();if(!empty($entries['barcode']))self::send_tracking_sms($order,(string)$entries['barcode']);
     }
