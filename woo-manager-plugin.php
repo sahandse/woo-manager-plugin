@@ -31,6 +31,7 @@ require_once WOO_MANAGER_PATH . 'includes/integrations/sms/class-wm-melipayamak.
 require_once WOO_MANAGER_PATH . 'includes/integrations/sms/class-wm-farazsms.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-rest.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-orders-fix.php';
+require_once WOO_MANAGER_PATH . 'includes/class-wm-packing.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-workflows.php';
 
 add_action('before_woocommerce_init', static function (): void {
@@ -64,6 +65,7 @@ add_action('plugins_loaded', static function (): void {
     WM_Devices::boot();
     WM_REST::boot();
     WM_Orders_Fix::boot();
+    WM_Packing::boot();
     WM_Workflows::boot();
 });
 
