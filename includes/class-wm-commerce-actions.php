@@ -109,12 +109,14 @@ final class WM_Commerce_Actions {
             $grams = wc_get_weight((float) $product->get_weight(), 'g');
             if ($grams > 0) $product_weight += (int) round($grams * max(1, (int) $item->get_quantity()));
         }
+        $configured_weight = absint(WM_Settings::get('tapin_package_weight', '100'));
+        $package_weight = max(100, $product_weight, $configured_weight);
         return rest_ensure_response([
             'configured' => WM_Tapin::health(),
             'defaults' => [
                 'province_code' => absint($order->get_meta('_tapin_province_code')),
                 'city_code' => absint($order->get_meta('_tapin_city_code')),
-                'package_weight' => absint(WM_Settings::get('tapin_package_weight', '100')) ?: max(100, $product_weight),
+                'package_weight' => $package_weight,
                 'products_weight' => $product_weight,
                 'pay_type' => 1,
                 'order_type' => absint(WM_Settings::get('tapin_order_type', '1')) ?: 1,
