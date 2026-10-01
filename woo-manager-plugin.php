@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Woo Manager
  * Description: API امن مدیریت ووکامرس، ارسال تاپین و پیامک فارسی.
- * Version: 1.2.3
+ * Version: 1.2.5
  * Author: Sahand Rezvan
  * Requires PHP: 7.4
  * Requires at least: 6.4
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') || exit;
 
-define('WOO_MANAGER_VERSION', '1.2.3');
+define('WOO_MANAGER_VERSION', '1.2.5');
 define('WOO_MANAGER_FILE', __FILE__);
 define('WOO_MANAGER_PATH', plugin_dir_path(__FILE__));
 $woo_manager_autoload = WOO_MANAGER_PATH . 'vendor/autoload.php';
@@ -34,6 +34,7 @@ require_once WOO_MANAGER_PATH . 'includes/class-wm-orders-fix.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-order-detail-fix.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-packing.php';
 require_once WOO_MANAGER_PATH . 'includes/class-wm-workflows.php';
+require_once WOO_MANAGER_PATH . 'includes/class-wm-commerce-actions.php';
 
 add_action('before_woocommerce_init', static function (): void {
     if (class_exists(Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
@@ -69,6 +70,7 @@ add_action('plugins_loaded', static function (): void {
     WM_Order_Detail_Fix::boot();
     WM_Packing::boot();
     WM_Workflows::boot();
+    WM_Commerce_Actions::boot();
 });
 
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), static function (array $links): array {
