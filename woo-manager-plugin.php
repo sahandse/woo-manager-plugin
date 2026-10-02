@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Woo Manager
  * Description: API امن مدیریت ووکامرس، ارسال تاپین و پیامک فارسی.
- * Version: 1.2.5
+ * Version: 1.3.1
  * Author: Sahand Rezvan
  * Requires PHP: 7.4
  * Requires at least: 6.4
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') || exit;
 
-define('WOO_MANAGER_VERSION', '1.2.5');
+define('WOO_MANAGER_VERSION', '1.3.1');
 define('WOO_MANAGER_FILE', __FILE__);
 define('WOO_MANAGER_PATH', plugin_dir_path(__FILE__));
 $woo_manager_autoload = WOO_MANAGER_PATH . 'vendor/autoload.php';
