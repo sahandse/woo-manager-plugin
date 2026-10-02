@@ -18,6 +18,16 @@ final class WM_Commerce_Actions {
             'callback' => [self::class, 'send_order_message'],
             'permission_callback' => $auth,
         ]);
+        register_rest_route('woo-manager/v1', '/orders/(?P<order_id>\\d+)/message-templates', [
+            'methods' => 'GET',
+            'callback' => [self::class, 'message_templates'],
+            'permission_callback' => $auth,
+        ]);
+        register_rest_route('woo-manager/v1', '/orders/(?P<order_id>\\d+)/shipping-ready', [
+            'methods' => 'POST',
+            'callback' => [self::class, 'shipping_ready'],
+            'permission_callback' => $auth,
+        ]);
         register_rest_route('woo-manager/v1', '/tapin/options/(?P<order_id>\\d+)', [
             'methods' => 'GET',
             'callback' => [self::class, 'tapin_options'],
@@ -98,6 +108,46 @@ final class WM_Commerce_Actions {
         return rest_ensure_response(['ok' => true, 'mobile' => substr($mobile, 0, 4).'***'.substr($mobile, -3)]);
     }
 
+    public static function message_templates(WP_REST_Request $request) {
+        $order = wc_get_order(absint($request['order_id']));
+        if (!$order) return new WP_Error('order_not_found', 'سفارش پیدا نشد.', ['status' => 404]);
+        $number = $order->get_order_number();
+        $tracking = trim((string) $order->get_meta('_tracking_number'));
+        $store = wp_specialchars_decode(get_bloginfo('name'), ENT_QUOTES);
+        $suffix = $store !== '' ? "\n".$store : '';
+        $templates = [
+            ['key' => 'received', 'status' => 'pending', 'title' => 'ثبت سفارش', 'message' => "سفارش #{$number} با موفقیت ثبت شد و در انتظار پرداخت/تأیید است.".$suffix],
+            ['key' => 'processing', 'status' => 'processing', 'title' => 'در حال آماده‌سازی', 'message' => "سفارش #{$number} در حال آماده‌سازی و بسته‌بندی است.".$suffix],
+            ['key' => 'ready', 'status' => 'processing', 'title' => 'آماده برای ارسال', 'message' => "سفارش #{$number} آماده ارسال است و به‌زودی تحویل پست می‌شود.".$suffix],
+            ['key' => 'post', 'status' => 'processing', 'title' => 'تحویل به پست', 'message' => "سفارش #{$number} تحویل پست شد.".($tracking !== '' ? " کد رهگیری: {$tracking}" : '').$suffix],
+            ['key' => 'tracking', 'status' => 'processing', 'title' => 'کد رهگیری', 'message' => "سفارش #{$number} ارسال شد.".($tracking !== '' ? " کد رهگیری: {$tracking}" : ' کد رهگیری پس از ثبت مرسوله ارسال می‌شود.').$suffix],
+            ['key' => 'completed', 'status' => 'completed', 'title' => 'تکمیل سفارش', 'message' => "سفارش #{$number} تکمیل شد. از خرید شما سپاسگزاریم.".$suffix],
+            ['key' => 'address', 'status' => '', 'title' => 'نیاز به اصلاح آدرس', 'message' => "برای ارسال سفارش #{$number}، آدرس یا کدپستی نیاز به بررسی دارد. لطفاً با فروشگاه تماس بگیرید.".$suffix],
+        ];
+        return rest_ensure_response([
+            'order_id' => $order->get_id(),
+            'order_number' => $number,
+            'current_status' => $order->get_status(),
+            'tracking_number' => $tracking !== '' ? $tracking : null,
+            'items' => $templates,
+        ]);
+    }
+
+    public static function shipping_ready(WP_REST_Request $request) {
+        $order = wc_get_order(absint($request['order_id']));
+        if (!$order) return new WP_Error('order_not_found', 'سفارش پیدا نشد.', ['status' => 404]);
+        $p = (array) $request->get_json_params();
+        $ready = rest_sanitize_boolean($p['ready'] ?? true);
+        $current = (bool) $order->get_meta('_woo_manager_shipping_ready');
+        if ($current !== $ready) {
+            $order->update_meta_data('_woo_manager_shipping_ready', $ready ? '1' : '');
+            $order->add_order_note($ready ? 'وضعیت «آماده برای ارسال» از اپ فعال شد.' : 'وضعیت «آماده برای ارسال» از اپ برداشته شد.');
+            $order->save();
+            WM_Logs::add('shipping_ready_changed', $ready ? 'سفارش آماده ارسال شد.' : 'آماده ارسال لغو شد.', ['order_id' => $order->get_id(), 'ready' => $ready]);
+        }
+        return rest_ensure_response(['ok' => true, 'ready' => $ready, 'order_id' => $order->get_id()]);
+    }
+
     public static function tapin_options(WP_REST_Request $request) {
         $order = wc_get_order(absint($request['order_id']));
         if (!$order) return new WP_Error('order_not_found', 'سفارش پیدا نشد.', ['status' => 404]);
@@ -111,8 +161,15 @@ final class WM_Commerce_Actions {
         }
         $configured_weight = absint(WM_Settings::get('tapin_package_weight', '100'));
         $package_weight = max(100, $product_weight, $configured_weight);
+        $default_box = absint(WM_Settings::get('tapin_box_id'));
+        $box_options = [];
+        if ($default_box > 0) {
+            $box_options[] = ['id' => $default_box, 'label' => 'جعبه پیش‌فرض فروشگاه (#'.$default_box.')'];
+        }
         return rest_ensure_response([
             'configured' => WM_Tapin::health(),
+            'shipping_ready' => (bool) $order->get_meta('_woo_manager_shipping_ready'),
+            'order_status' => $order->get_status(),
             'defaults' => [
                 'province_code' => absint($order->get_meta('_tapin_province_code')),
                 'city_code' => absint($order->get_meta('_tapin_city_code')),
@@ -120,9 +177,10 @@ final class WM_Commerce_Actions {
                 'products_weight' => $product_weight,
                 'pay_type' => 1,
                 'order_type' => absint(WM_Settings::get('tapin_order_type', '1')) ?: 1,
-                'box_id' => absint(WM_Settings::get('tapin_box_id')),
+                'box_id' => $default_box,
                 'content_type' => 1,
             ],
+            'box_options' => $box_options,
             'destination' => [
                 'province' => $order->get_shipping_state() ?: $order->get_billing_state(),
                 'city' => $order->get_shipping_city() ?: $order->get_billing_city(),
